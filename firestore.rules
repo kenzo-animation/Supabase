@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /profiles/{userId} {
+      function ownsProfile() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function validProfile() {
+        return request.resource.data.keys().hasOnly([
+            'fullName', 'birthDate', 'nickname', 'avatarPath', 'updatedAt'
+          ])
+          && request.resource.data.fullName is string
+          && request.resource.data.fullName.size() <= 120
+          && request.resource.data.birthDate is string
+          && request.resource.data.birthDate.matches(
+            '^\\d{4}-\\d{2}-\\d{2}$'
+          )
+          && request.resource.data.nickname is string
+          && request.resource.data.nickname.size() <= 40
+          && (
+            request.resource.data.avatarPath == null
+            || request.resource.data.avatarPath
+              == 'avatars/' + userId + '/profile'
+          )
+          && request.resource.data.updatedAt == request.time;
+      }
+
+      allow read: if ownsProfile();
+      allow create, update: if ownsProfile() && validProfile();
+    }
+  }
+}

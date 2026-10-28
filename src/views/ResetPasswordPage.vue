@@ -39,7 +39,8 @@ import {
   IonTitle,
   IonToolbar,
 } from '@ionic/vue'
-import { getErrorMessage, getSupabase } from '@/lib/supabase'
+import { sendPasswordResetEmail } from 'firebase/auth'
+import { getErrorMessage, getFirebaseAuth } from '@/lib/firebase'
 
 const email = ref('')
 const isLoading = ref(false)
@@ -52,14 +53,14 @@ async function sendRecoveryEmail() {
   notice.value = ''
 
   try {
-    const redirectTo =
-      import.meta.env.VITE_AUTH_REDIRECT_URL ||
-      new URL('/update-password', window.location.origin).toString()
-    const { error } = await getSupabase().auth.resetPasswordForEmail(
+    const actionCodeSettings = {
+      url: new URL('/update-password', window.location.origin).toString(),
+    }
+    await sendPasswordResetEmail(
+      getFirebaseAuth(),
       email.value.trim(),
-      { redirectTo },
+      actionCodeSettings,
     )
-    if (error) throw error
     notice.value = 'Se o endereço estiver cadastrado, você receberá um link para redefinir a senha.'
   } catch (error: unknown) {
     errorMessage.value = getErrorMessage(error)

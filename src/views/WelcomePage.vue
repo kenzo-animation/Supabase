@@ -19,8 +19,8 @@
 import { onMounted, ref } from 'vue'
 import { IonAvatar, IonButton, IonContent, IonNote, IonPage } from '@ionic/vue'
 import AppHeader from '@/components/AppHeader.vue'
+import { getFirebaseAuth, getErrorMessage } from '@/lib/firebase'
 import { createAvatarUrl, fetchProfile } from '@/lib/profile'
-import { getErrorMessage, getSupabase } from '@/lib/supabase'
 
 const displayName = ref('!')
 const avatarUrl = ref<string | null>(null)
@@ -28,17 +28,13 @@ const errorMessage = ref('')
 
 onMounted(async () => {
   try {
-    const { data, error } = await getSupabase().auth.getUser()
-    if (error) throw error
-    if (!data.user) throw new Error('Sua sessão expirou. Entre novamente.')
+    const user = getFirebaseAuth().currentUser
+    if (!user) throw new Error('Sua sessão expirou. Entre novamente.')
 
-    displayName.value =
-      data.user.user_metadata.full_name ||
-      data.user.email ||
-      '!'
-    const profile = await fetchProfile(data.user.id)
-    if (profile?.full_name) displayName.value = profile.full_name
-    avatarUrl.value = await createAvatarUrl(profile?.avatar_path ?? null)
+    displayName.value = user.displayName || user.email || '!'
+    const profile = await fetchProfile(user.uid)
+    if (profile?.fullName) displayName.value = profile.fullName
+    avatarUrl.value = await createAvatarUrl(profile?.avatarPath ?? null)
   } catch (error: unknown) {
     errorMessage.value = getErrorMessage(error)
   }

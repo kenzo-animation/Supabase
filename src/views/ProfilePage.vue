@@ -20,6 +20,7 @@
           label="Nome completo"
           label-placement="stacked"
           autocomplete="name"
+          :maxlength="120"
           required
         />
         <ion-input
@@ -34,6 +35,7 @@
           label="Nickname"
           label-placement="stacked"
           autocomplete="nickname"
+          :maxlength="40"
           required
         />
         <ion-note v-if="errorMessage" color="danger">{{ errorMessage }}</ion-note>
@@ -53,9 +55,15 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { IonAvatar, IonButton, IonContent, IonInput, IonNote, IonPage } from '@ionic/vue'
+import { updateProfile } from 'firebase/auth'
+import { ref as storageRef, uploadBytes } from 'firebase/storage'
 import AppHeader from '@/components/AppHeader.vue'
-import { createAvatarUrl, fetchProfile } from '@/lib/profile'
-import { getErrorMessage, getSupabase } from '@/lib/supabase'
+import { getErrorMessage, getFirebaseAuth, getFirebaseStorage } from '@/lib/firebase'
+import {
+  createAvatarUrl,
+  fetchProfile,
+  saveProfile as writeProfile,
+} from '@/lib/profile'
 
 const userId = ref('')
 const fullName = ref('')
@@ -70,22 +78,19 @@ const notice = ref('')
 
 onMounted(async () => {
   try {
-    const { data, error } = await getSupabase().auth.getUser()
-    if (error) throw error
-    if (!data.user) throw new Error('Sua sessão expirou. Entre novamente.')
+    const user = getFirebaseAuth().currentUser
+    if (!user) throw new Error('Sua sessão expirou. Entre novamente.')
 
-    userId.value = data.user.id
-    const profile = await fetchProfile(data.user.id)
+    userId.value = user.uid
+    const profile = await fetchProfile(user.uid)
     if (profile) {
-      fullName.value = profile.full_name
-      birthDate.value = profile.birth_date
+      fullName.value = profile.fullName
+      birthDate.value = profile.birthDate
       nickname.value = profile.nickname
-      avatarPath.value = profile.avatar_path
-      avatarUrl.value = await createAvatarUrl(profile.avatar_path)
+      avatarPath.value = profile.avatarPath
+      avatarUrl.value = await createAvatarUrl(profile.avatarPath)
     } else {
-      fullName.value = data.user.user_metadata.full_name ?? ''
-      birthDate.value = data.user.user_metadata.birth_date ?? ''
-      nickname.value = data.user.user_metadata.nickname ?? ''
+      fullName.value = user.displayName ?? ''
     }
   } catch (error: unknown) {
     errorMessage.value = getErrorMessage(error)
@@ -97,19 +102,15 @@ async function saveProfile() {
   notice.value = ''
   isSaving.value = true
   try {
-    const { error } = await getSupabase()
-      .from('profiles')
-      .upsert(
-        {
-          id: userId.value,
-          full_name: fullName.value.trim(),
-          birth_date: birthDate.value,
-          nickname: nickname.value.trim(),
-          avatar_path: avatarPath.value,
-        },
-        { onConflict: 'id' },
-      )
-    if (error) throw error
+    const profile = {
+      fullName: fullName.value.trim(),
+      birthDate: birthDate.value,
+      nickname: nickname.value.trim(),
+      avatarPath: avatarPath.value,
+    }
+    await writeProfile(userId.value, profile)
+    const user = getFirebaseAuth().currentUser
+    if (user) await updateProfile(user, { displayName: profile.fullName })
     notice.value = 'Perfil salvo com sucesso.'
   } catch (error: unknown) {
     errorMessage.value = getErrorMessage(error)
@@ -140,12 +141,10 @@ async function uploadAvatar(event: Event) {
   isUploading.value = true
   try {
     if (!userId.value) throw new Error('Não foi possível identificar sua conta.')
-    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const path = `${userId.value}/avatar.${extension}`
-    const { error } = await getSupabase()
-      .storage.from('avatars')
-      .upload(path, file, { upsert: true, contentType: file.type })
-    if (error) throw error
+    const path = `avatars/${userId.value}/profile`
+    await uploadBytes(storageRef(getFirebaseStorage(), path), file, {
+      contentType: file.type,
+    })
 
     avatarPath.value = path
     avatarUrl.value = await createAvatarUrl(path)

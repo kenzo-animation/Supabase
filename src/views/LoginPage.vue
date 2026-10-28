@@ -17,6 +17,7 @@
                 label="Nome completo"
                 label-placement="stacked"
                 autocomplete="name"
+                :maxlength="120"
                 required
               />
               <ion-input
@@ -33,6 +34,7 @@
                 label="Nickname"
                 label-placement="stacked"
                 autocomplete="nickname"
+                :maxlength="40"
                 required
               />
               <ion-input
@@ -91,7 +93,13 @@ import {
   IonNote,
   IonPage,
 } from '@ionic/vue'
-import { getErrorMessage, getSupabase } from '@/lib/supabase'
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+} from 'firebase/auth'
+import { getErrorMessage, getFirebaseAuth } from '@/lib/firebase'
+import { saveProfile } from '@/lib/profile'
 
 const router = useRouter()
 const route = useRoute()
@@ -102,12 +110,11 @@ const password = ref('')
 const fullName = ref('')
 const birthDate = ref('')
 const nickname = ref('')
-const errorMessage = ref(
-  route.query.error === 'session'
-    ? 'Não foi possível recuperar sua sessão. Tente novamente.'
-    : '',
-)
+const errorMessage = ref('')
 const notice = ref('')
+if (route.query.passwordUpdated === 'true') {
+  notice.value = 'Senha atualizada. Entre com sua nova senha.'
+}
 
 function toggleMode() {
   isSignUp.value = !isSignUp.value
@@ -121,37 +128,28 @@ async function submit() {
   notice.value = ''
 
   try {
-    const client = getSupabase()
+    const auth = getFirebaseAuth()
     const normalizedEmail = email.value.trim()
 
     if (isSignUp.value) {
-      const { data, error } = await client.auth.signUp({
-        email: normalizedEmail,
-        password: password.value,
-        options: {
-          emailRedirectTo: new URL('/welcome', window.location.origin).toString(),
-          data: {
-            full_name: fullName.value.trim(),
-            birth_date: birthDate.value,
-            nickname: nickname.value.trim(),
-          },
-        },
-      })
-      if (error) throw error
-
-      if (data.session) {
-        await router.replace({ name: 'welcome' })
-      } else {
-        notice.value = 'Conta criada. Verifique seu e-mail para confirmar o cadastro.'
+      const credential = await createUserWithEmailAndPassword(
+        auth,
+        normalizedEmail,
+        password.value,
+      )
+      const profile = {
+        fullName: fullName.value.trim(),
+        birthDate: birthDate.value,
+        nickname: nickname.value.trim(),
+        avatarPath: null,
       }
+      await updateProfile(credential.user, { displayName: profile.fullName })
+      await saveProfile(credential.user.uid, profile)
+      await router.replace({ name: 'welcome' })
       return
     }
 
-    const { error } = await client.auth.signInWithPassword({
-      email: normalizedEmail,
-      password: password.value,
-    })
-    if (error) throw error
+    await signInWithEmailAndPassword(auth, normalizedEmail, password.value)
     await router.replace({ name: 'welcome' })
   } catch (error: unknown) {
     errorMessage.value = getErrorMessage(error)

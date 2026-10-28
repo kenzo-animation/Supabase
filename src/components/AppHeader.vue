@@ -18,7 +18,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { IonButton, IonButtons, IonHeader, IonTitle, IonToolbar } from '@ionic/vue'
-import { getErrorMessage, getSupabase } from '@/lib/supabase'
+import { signOut as firebaseSignOut } from 'firebase/auth'
+import { getErrorMessage, getFirebaseAuth } from '@/lib/firebase'
 
 defineProps<{ title: string }>()
 
@@ -30,8 +31,7 @@ async function signOut() {
   isLoading.value = true
   errorMessage.value = ''
   try {
-    const { error } = await getSupabase().auth.signOut()
-    if (error) throw error
+    await firebaseSignOut(getFirebaseAuth())
     await router.replace({ name: 'login' })
   } catch (error: unknown) {
     errorMessage.value = getErrorMessage(error)

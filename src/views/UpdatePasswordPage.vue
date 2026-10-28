@@ -52,7 +52,8 @@ import {
   IonToolbar,
 } from '@ionic/vue'
 import { useRouter } from 'vue-router'
-import { getErrorMessage, getSupabase } from '@/lib/supabase'
+import { confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth'
+import { getErrorMessage, getFirebaseAuth } from '@/lib/firebase'
 
 const router = useRouter()
 const password = ref('')
@@ -61,15 +62,18 @@ const hasRecoverySession = ref(false)
 const isLoading = ref(false)
 const errorMessage = ref('')
 const notice = ref('')
+const actionCode = ref('')
 
 onMounted(async () => {
   try {
-    const { data, error } = await getSupabase().auth.getSession()
-    if (error) throw error
-    hasRecoverySession.value = Boolean(data.session)
-    if (!data.session) {
+    const query = new URLSearchParams(window.location.search)
+    actionCode.value = query.get('oobCode') ?? ''
+    if (query.get('mode') !== 'resetPassword' || !actionCode.value) {
       errorMessage.value = 'O link de redefinição expirou ou não é válido. Solicite um novo link.'
+      return
     }
+    await verifyPasswordResetCode(getFirebaseAuth(), actionCode.value)
+    hasRecoverySession.value = true
   } catch (error: unknown) {
     errorMessage.value = getErrorMessage(error)
   }
@@ -85,10 +89,9 @@ async function updatePassword() {
 
   isLoading.value = true
   try {
-    const { error } = await getSupabase().auth.updateUser({ password: password.value })
-    if (error) throw error
+    await confirmPasswordReset(getFirebaseAuth(), actionCode.value, password.value)
     notice.value = 'Senha atualizada com sucesso.'
-    await router.replace({ name: 'welcome' })
+    await router.replace({ name: 'login', query: { passwordUpdated: 'true' } })
   } catch (error: unknown) {
     errorMessage.value = getErrorMessage(error)
   } finally {

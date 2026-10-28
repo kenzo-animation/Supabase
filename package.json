@@ -1,5 +1,5 @@
 {
-  "name": "Supabase",
+  "name": "ionic-vue-firebase",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -19,7 +19,7 @@
     "@capacitor/status-bar": "8.0.4",
     "@ionic/vue": "^9.0.0",
     "@ionic/vue-router": "^9.0.0",
-    "@supabase/supabase-js": "^2.117.3",
+    "firebase": "^13.1.0",
     "ionicons": "^8.1.0",
     "vue": "^3.5.0",
     "vue-router": "^5.0.0"

@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from '@ionic/vue-router'
 import type { RouteRecordRaw } from 'vue-router'
-import { supabase } from '@/lib/supabase'
+import { auth, isFirebaseConfigured } from '@/lib/firebase'
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -46,16 +46,16 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  if (!supabase) {
+  if (!isFirebaseConfigured || !auth) {
     return to.meta.requiresAuth ? { name: 'login' } : true
   }
 
-  const { data, error } = await supabase.auth.getSession()
-  if (error) return { name: 'login', query: { error: 'session' } }
+  await auth.authStateReady()
+  const isLoggedIn = Boolean(auth.currentUser)
 
-  if (to.meta.requiresAuth && !data.session) return { name: 'login' }
+  if (to.meta.requiresAuth && !isLoggedIn) return { name: 'login' }
   if (
-    data.session &&
+    isLoggedIn &&
     (to.name === 'login' || to.name === 'reset-password')
   ) {
     return { name: 'welcome' }
